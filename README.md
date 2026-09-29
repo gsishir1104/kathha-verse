@@ -1,4 +1,4 @@
-# Storylens
+# KathhaVerse
 
 **AI works through a server-side provider gateway.** Production uses the OpenAI
 API; local development can use Ollama. See [LOCAL_AI.md](LOCAL_AI.md) for the
