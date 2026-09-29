@@ -1,0 +1,15 @@
+.venv
+frontend/node_modules
+frontend/.next
+frontend/out
+**/__pycache__
+**/.pytest_cache
+**/*.db
+**/*.db-shm
+**/*.db-wal
+.env
+google-oauth.json
+**/client_secret_*.json
+.git
+
+admin-users.json

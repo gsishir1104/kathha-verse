@@ -1,0 +1,11 @@
+CREATE TABLE IF NOT EXISTS account_controls (
+ user_id VARCHAR(36) PRIMARY KEY REFERENCES users(id),
+ suspended INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS admin_events (
+ id VARCHAR(36) PRIMARY KEY,
+ actor_id VARCHAR(36) NOT NULL REFERENCES users(id),
+ resource_id VARCHAR(36) NOT NULL,
+ action TEXT NOT NULL,
+ created DOUBLE PRECISION NOT NULL
+);

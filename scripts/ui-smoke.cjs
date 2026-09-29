@@ -1,0 +1,42 @@
+// Separate database and browser context: never touches the live workspace.
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const {spawn}=require('node:child_process');
+const fs=require('node:fs');const os=require('node:os');const path=require('node:path');
+const root=path.resolve(__dirname,'..');const dir=fs.mkdtempSync(path.join(os.tmpdir(),'storylens-ui-'));
+const server=spawn(path.join(root,'.venv/Scripts/python.exe'),['-m','uvicorn','app.main:app','--host','127.0.0.1','--port','8001'],{cwd:path.join(root,'backend'),windowsHide:true,env:{...process.env,DEMO_MODE:'true',DATABASE_URL:'sqlite:///'+path.join(dir,'ui.db').replaceAll('\\','/'),FRONTEND_ORIGINS:'http://127.0.0.1:8001',FRONTEND_DIST:'../frontend/out'}});
+let browser;const errors=[];
+server.stderr.on('data',x=>{if(String(x).includes('ERROR'))errors.push(String(x))});
+(async()=>{try{
+ for(let i=0;i<50;i++){try{const r=await fetch('http://127.0.0.1:8001/api/auth/me');if(r.status===401)break}catch{}await new Promise(r=>setTimeout(r,200))}
+ browser=await chromium.launch({channel:'msedge',headless:true});
+ const context=await browser.newContext({viewport:{width:1440,height:1000}});const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('http://127.0.0.1:8001/');await page.getByRole('button',{name:'Explore sample workspace'}).click();
+ await page.getByRole('button',{name:/The Last Light/}).click();
+ const text=page.getByRole('textbox',{name:'Chapter manuscript'});await text.fill('Nora found a silver key.\n\nShe wondered who had left it at the gate.');
+ await page.getByText('All manuscript changes saved.',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'Story settings',exact:true}).click();await page.getByRole('heading',{name:'Story settings & writing goals'}).waitFor();
+ await page.getByLabel('Tags (comma separated)').fill('Mystery,Keys');await page.getByRole('button',{name:'Save story settings',exact:true}).click();await page.getByText('Story settings saved',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'Author intent',exact:true}).click();await page.getByRole('button',{name:'Add reader target',exact:true}).click();await page.getByLabel('Subject',{exact:true}).fill('Nora');await page.getByRole('button',{name:'Save intent',exact:true}).click();
+ await page.getByRole('button',{name:'Manuscript',exact:true}).click();await page.getByRole('button',{name:/Build a review manually/}).click();await page.getByRole('heading',{name:'Your Story Universe',exact:true}).waitFor();
+ await page.getByRole('button',{name:'Add entity',exact:true}).click();await page.getByLabel('Name',{exact:true}).fill('Nora');await page.getByLabel('Interpretation',{exact:true}).fill('Nora finds a key.');await page.getByLabel('Exact chapter evidence',{exact:true}).fill('Nora found a silver key.');
+ await page.getByText('Goals, conflicts, timeline & relationships',{exact:true}).click();await page.getByRole('button',{name:'Add goal',exact:true}).click();await page.getByLabel('goals statement',{exact:true}).fill('Understand the key');await page.getByLabel('goals evidence',{exact:true}).fill('She wondered who had left it at the gate.');await page.getByRole('button',{name:'Save correction',exact:true}).click();
+ await page.getByRole('button',{name:'Confirm',exact:true}).click();
+ await page.getByRole('button',{name:'Save review',exact:true}).click();
+ await page.getByRole('button',{name:'Beta readers',exact:true}).click();await page.getByRole('heading',{name:'Find beta readers',exact:true}).waitFor();
+ await page.getByRole('button',{name:'Reader intelligence',exact:true}).click();await page.getByRole('heading',{name:'Predictions & suspicion over time'}).waitFor();
+ await page.getByLabel('Sample account').selectOption('beta');await page.getByRole('heading',{name:'Your reading room'}).waitFor();
+ await page.getByRole('button',{name:'My reader profile',exact:true}).click();await page.getByLabel('About your reading').fill('I enjoy mystery and pacing feedback.');await page.getByLabel('Favorite genres (comma separated)').fill('Mystery');await page.getByLabel('Let signed-in writers discover my profile').check();await page.getByRole('button',{name:'Save profile',exact:true}).click();await page.getByText('Reader profile saved',{exact:true}).waitFor();
+ await page.screenshot({path:path.join(root,'../../work/studio-beta-profile.png'),fullPage:true});
+ const writerContext=await browser.newContext();await writerContext.request.post('http://127.0.0.1:8001/api/auth/demo/writer');
+ const stories=await (await writerContext.request.get('http://127.0.0.1:8001/api/stories')).json();const story=stories[0];const chapter=await (await writerContext.request.get('http://127.0.0.1:8001/api/chapters/'+story.chapters[0].id)).json();
+ let response=await writerContext.request.post('http://127.0.0.1:8001/api/snapshots/'+chapter.snapshot.id+'/verify',{data:{revision:chapter.revision,universe:chapter.snapshot.universe,confirm_reader_safety:true}});if(!response.ok())throw Error(await response.text());
+ const invitation=await (await writerContext.request.post('http://127.0.0.1:8001/api/stories/'+story.id+'/invitations',{data:{email:'beta@storylens.test'}})).json();await context.request.post('http://127.0.0.1:8001/api/invitations/'+invitation.id+'/accept');
+ const reader=await (await context.request.get('http://127.0.0.1:8001/api/auth/me')).json();await writerContext.request.post('http://127.0.0.1:8001/api/chapters/'+chapter.id+'/release',{data:{snapshot_id:chapter.snapshot.id,reader_ids:[reader.id]}});
+ await page.getByRole('button',{name:'Reading room',exact:true}).click();await page.getByRole('button',{name:'Refresh shelf',exact:true}).click();await page.getByRole('button',{name:new RegExp(chapter.title)}).click();
+ await page.getByRole('button',{name:'Story Universe',exact:true}).click();await page.getByRole('button',{name:'Timeline',exact:true}).click();await page.getByRole('button',{name:'Graph',exact:true}).click();await page.getByRole('button',{name:'Inspect Nora',exact:true}).click();await page.getByText('Known universe through the selected chapter',{exact:true}).click();await page.getByText('Known universe through the selected chapter',{exact:true}).click();
+ await page.getByRole('button',{name:'Your perspective',exact:true}).click();await page.getByLabel('Character, clue, feeling, or theory').fill('Nora');await page.getByLabel('Why do you think so?').fill('Her curiosity makes the opening engaging.');await page.getByRole('button',{name:'Save observation',exact:true}).click();await page.getByText('Observation saved',{exact:true}).waitFor();
+ await page.getByLabel('Your review',{exact:true}).fill('I want to know who left the key.');await page.getByRole('button',{name:'Share overall feedback',exact:true}).click();await page.getByText('Overall feedback shared',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'Reader Memory',exact:true}).click();await page.getByRole('heading',{name:'Observation: Nora',exact:true}).waitFor();
+ await page.getByRole('combobox',{name:'Color theme'}).selectOption('dark');await page.screenshot({path:path.join(root,'../../work/studio-reader-memory-dark.png'),fullPage:true});
+ if(errors.length)throw Error(errors.join('\n'));console.log('Writer and beta-reader browser smoke checks passed.');
+ }finally{if(browser)await browser.close();server.kill();console.log('Isolated test data retained at '+dir)}})().catch(e=>{console.error(e);process.exitCode=1});
