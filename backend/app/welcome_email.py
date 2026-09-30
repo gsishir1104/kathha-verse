@@ -5,6 +5,7 @@ import smtplib
 import ssl
 import threading
 import time
+import httpx
 from email.message import EmailMessage
 from email.utils import formataddr, formatdate
 from html import escape
@@ -67,6 +68,33 @@ def message(name, recipient, role, user_id, config):
     return msg
 
 def deliver(msg, config):
+    # Some hosted networks time out on outbound SMTP ports. Resend also offers
+    # HTTPS delivery, so use it when the configured credentials belong to
+    # Resend while retaining SMTP for other providers and local development.
+    if config['host'].lower() == 'smtp.resend.com' and config['username'] == 'resend':
+        plain = msg.get_body(preferencelist=('plain',))
+        html = msg.get_body(preferencelist=('html',))
+        payload = {
+            'from': str(msg['From']),
+            'to': [str(msg['To'])],
+            'subject': str(msg['Subject']),
+            'text': plain.get_content() if plain else '',
+            'html': html.get_content() if html else '',
+        }
+        if msg.get('Reply-To'):
+            payload['reply_to'] = str(msg['Reply-To'])
+        message_id = str(msg.get('Message-ID', '')).strip('<>')
+        response = httpx.post(
+            'https://api.resend.com/emails',
+            headers={
+                'Authorization': f"Bearer {config['password']}",
+                'Idempotency-Key': message_id,
+            },
+            json=payload,
+            timeout=15,
+        )
+        response.raise_for_status()
+        return
     context = ssl.create_default_context()
     if config['security'] == 'ssl':
         client = smtplib.SMTP_SSL(config['host'], config['port'], timeout=15, context=context)
@@ -111,7 +139,8 @@ def process_one():
             item = db.get(WelcomeEmail, user_id)
             item.last_error = type(error).__name__[:80]
             # Disconnect/timeouts may happen after acceptance: operator review instead of duplicates.
-            uncertain = isinstance(error, smtplib.SMTPServerDisconnected) or (isinstance(error, OSError) and not isinstance(error, smtplib.SMTPException))
+            uncertain = (isinstance(error, (smtplib.SMTPServerDisconnected, httpx.TimeoutException))
+                         or (isinstance(error, OSError) and not isinstance(error, smtplib.SMTPException)))
             item.status = 'uncertain' if uncertain else ('failed' if item.attempts >= 5 else 'pending')
             item.next_attempt = time.time() + min(3600, 60 * 2 ** item.attempts)
             db.commit()

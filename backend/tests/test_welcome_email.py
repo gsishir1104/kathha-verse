@@ -1,4 +1,5 @@
 import smtplib
+import httpx
 from sqlalchemy import select, func
 from test_vertical_slice import clients
 from app.db import SessionLocal
@@ -74,6 +75,40 @@ def test_smtp_requires_tls_before_login(monkeypatch):
     monkeypatch.setattr(mail.smtplib,'SMTP',FakeSMTP)
     config=mail.settings();mail.deliver(mail.message('Name','name@example.test','writer','id',config),config)
     assert calls==['connect','ehlo','tls','ehlo','login','send']
+
+def test_resend_credentials_use_https_api(monkeypatch):
+    configure(monkeypatch)
+    monkeypatch.setenv('SMTP_HOST','smtp.resend.com')
+    monkeypatch.setenv('SMTP_USERNAME','resend')
+    monkeypatch.setenv('SUPPORT_EMAIL','support@example.test')
+    calls=[]
+    class Response:
+        def raise_for_status(self):calls.append('status')
+    def post(url,headers,json,timeout):
+        calls.append((url,headers,json,timeout));return Response()
+    monkeypatch.setattr(mail.httpx,'post',post)
+    config=mail.settings()
+    msg=mail.message('Name','name@example.test','writer','user-1',config)
+    mail.deliver(msg,config)
+    url,headers,payload,timeout=calls[0]
+    assert url=='https://api.resend.com/emails' and timeout==15
+    assert headers['Authorization']=='Bearer secret-test-only'
+    assert headers['Idempotency-Key']=='welcome-user-1@example.test'
+    assert payload['from']=='Kathha Verse <hello@example.test>'
+    assert payload['to']==['name@example.test']
+    assert payload['reply_to']=='Kathha Verse Support <support@example.test>'
+    assert 'Create your story' in payload['text'] and '<html>' in payload['html']
+    assert calls[1]=='status'
+
+def test_resend_timeout_is_uncertain(clients,monkeypatch):
+    w,b,x=clients;uid=signup(x);configure(monkeypatch)
+    monkeypatch.setenv('SMTP_HOST','smtp.resend.com')
+    monkeypatch.setenv('SMTP_USERNAME','resend')
+    def timeout(*args,**kwargs):raise httpx.ReadTimeout('timed out')
+    monkeypatch.setattr(mail.httpx,'post',timeout)
+    assert mail.process_one()
+    with SessionLocal() as db:
+        assert db.get(mail.WelcomeEmail,uid).status=='uncertain'
 
 
 def test_support_reply_address(monkeypatch):

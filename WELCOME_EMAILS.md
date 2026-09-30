@@ -44,7 +44,7 @@ Configure private server environment values:
 - PUBLIC_APP_URL: the actual website URL, not localhost when sending to other people
 - MAIL_ENABLED=true only once setup is complete, then restart the server
 
-Replies arrive in the support Gmail inbox. This is not a helpdesk or automatic support responder. Sending is still disabled; queued welcomes remain pending. Gmail has sending limits and may restrict delivery, so this setup is for a small pilot. Resend with a verified owned domain remains an alternative later (smtp.resend.com, username resend, API key as SMTP password).
+Replies arrive in the support inbox. This is not a helpdesk or automatic support responder. Gmail has sending limits and may restrict delivery, so it is intended only for a small pilot. For Resend, use `smtp.resend.com`, username `resend`, and a domain-restricted sending API key as `SMTP_PASSWORD`. Kathha Verse recognizes those credentials and uses Resend's HTTPS API so hosted platforms do not depend on outbound SMTP ports.
 
 ## Google sign-in
 
