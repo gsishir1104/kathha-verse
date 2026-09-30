@@ -189,4 +189,4 @@ See [Writer and Beta Reader features](WRITER_BETA_FEATURES.md) for the current p
 
 ## Welcome emails
 
-New registrations queue a role-specific Storylens welcome email. Sending remains disabled until a sender address and SMTP credentials are configured. See [Welcome email setup](WELCOME_EMAILS.md).
+New registrations queue a role-specific Kathha Verse welcome email. Sending remains disabled until a sender address and SMTP credentials are configured. See [Welcome email setup](WELCOME_EMAILS.md).
