@@ -136,6 +136,21 @@ def test_labeled_relationships_are_kept_with_exact_evidence(monkeypatch):
     nora=universe['entities'][0]
     assert nora['relations']==[{'target_id':'local-2','label':'enters','strength':50,'evidence':'Nora enters the locked house.'}]
 
+def test_explicit_name_reveal_merges_alias_and_remaps_every_reference():
+    content='Samyukta followed the Strange Man. “What should I call you?” Samyukta asked. “Abhi,” he replied simply.'
+    universe={'entities':[
+        {'id':'stranger','name':'Strange Man','kind':'character','summary':'A mysterious visitor.','evidence':'Samyukta followed the Strange Man.','confidence':0.5,'reader_safe':False,'status':'pending','links':['samyukta'],'knowledge':[],'relations':[{'target_id':'samyukta','label':'followed by','evidence':'Samyukta followed the Strange Man.'}]},
+        {'id':'abhi','name':'Abhi','kind':'character','summary':'He reveals his name.','evidence':'“Abhi,” he replied simply.','confidence':0.5,'reader_safe':False,'status':'pending','links':['stranger'],'knowledge':[],'relations':[{'target_id':'stranger','label':'same person','evidence':'“Abhi,” he replied simply.'}]},
+        {'id':'samyukta','name':'Samyukta','kind':'character','summary':'She follows him.','evidence':'Samyukta followed the Strange Man.','confidence':0.5,'reader_safe':False,'status':'pending','links':['stranger'],'knowledge':[],'relations':[{'target_id':'stranger','label':'follows','evidence':'Samyukta followed the Strange Man.'}]}
+    ],'questions':[]}
+    repaired=local_ai.consolidate_explicit_identity_reveals(universe,content)
+    assert [e['name'] for e in repaired['entities']].count('Abhi')==1
+    assert all(e['name']!='Strange Man' for e in repaired['entities'])
+    assert all('stranger' not in e['links'] for e in repaired['entities'])
+    assert all(r['target_id']!='stranger' for e in repaired['entities'] for r in e['relations'])
+    abhi=next(e for e in repaired['entities'] if e['name']=='Abhi')
+    assert 'abhi' not in abhi['links'] and all(r['target_id']!='abhi' for r in abhi['relations'])
+
 def test_long_chapter_analysis_covers_all_4000_words(monkeypatch):
     content=' '.join('word'+str(i) for i in range(4000))
     seen=[]

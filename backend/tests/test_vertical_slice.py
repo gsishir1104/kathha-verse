@@ -55,9 +55,9 @@ def test_full_vertical_slice_and_private_boundary(clients):
     reading=b.get('/api/read/'+rid);assert reading.status_code==200
     payload=reading.json();assert 'PRIVATE_KNOWLEDGE_CANARY' not in reading.text
     assert 'prediction_target' not in reading.text
-    assert {e['id'] for e in payload['universe']['entities']} == {e['id'] for e in s['universe']['entities'] if e['status']=='confirmed'}
-    safe_ids={e['id'] for e in payload['universe']['entities']}
-    assert all(set(e['links'])<=safe_ids for e in payload['universe']['entities'])
+    assert payload['universe']['entities']==[]
+    assert b.get('/api/read/'+rid+'/story-state').status_code==409
+    assert b.get('/api/read/'+rid+'/graph-changes').status_code==409
     assert x.get('/api/read/'+rid).status_code==401
     assert w.get('/api/read/'+rid).status_code==404
     assert x.post('/api/auth/register',json={'name':'Outsider','email':'outsider@example.test','password':'secure-password-123','role':'beta'}).status_code==200
@@ -74,6 +74,10 @@ def test_full_vertical_slice_and_private_boundary(clients):
     assert b.post('/api/questions/'+q['id']+'/answer',json=a).status_code==200
     assert b.post('/api/questions/'+q['id']+'/answer',json={**a,'text':'Changed after reveal'}).status_code==409
     assert b.post('/api/read/'+rid+'/complete').status_code==200
+    completed=b.get('/api/read/'+rid).json()
+    assert {e['id'] for e in completed['universe']['entities']} == {e['id'] for e in s['universe']['entities'] if e['status']=='confirmed'}
+    safe_ids={e['id'] for e in completed['universe']['entities']}
+    assert all(set(e['links'])<=safe_ids for e in completed['universe']['entities'])
     assert len(b.get('/api/read/'+rid+'/memory').json())==1
     follow=b.post('/api/read/'+rid+'/follow-up');assert follow.status_code==200
     assert any('Earlier you wrote' in q['text'] for q in follow.json())

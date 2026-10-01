@@ -62,7 +62,7 @@ def test_checkpoint_blocks_text_graph_questions_and_direct_answers(clients):
     reading=b.get('/api/read/'+rid).json()
     assert reading['content']==c['content'][:end] and reading['checkpoint_pending']
     assert reading['universe']['entities']==[] and len(reading['questions'])==1
-    assert b.get('/api/read/'+rid+'/story-state').json()[0]['universe']['entities']==[]
+    assert b.get('/api/read/'+rid+'/story-state').status_code==409
     assert b.post('/api/read/'+rid+'/complete').status_code==409
     assert b.put('/api/read/'+rid+'/position',json={'snapshot_id':s['id'],'offset':end+1}).status_code==422
     assert b.post('/api/read/'+rid+'/follow-up').status_code==409
@@ -73,8 +73,10 @@ def test_checkpoint_blocks_text_graph_questions_and_direct_answers(clients):
     assert b.post('/api/questions/'+locked+'/answer',json=answer).status_code==403
     assert b.post('/api/questions/'+reading['questions'][0]['id']+'/answer',json=answer).status_code==200
     reading=b.get('/api/read/'+rid).json()
-    assert reading['content']==c['content'] and not reading['checkpoint_pending'] and len(reading['universe']['entities'])>0
+    assert reading['content']==c['content'] and not reading['checkpoint_pending'] and reading['universe']['entities']==[]
     assert b.post('/api/questions/'+reading['questions'][0]['id']+'/answer',json=answer).status_code==409
+    assert b.post('/api/read/'+rid+'/complete').status_code==200
+    assert len(b.get('/api/read/'+rid).json()['universe']['entities'])>0
 
 def test_merge_remaps_knowledge_and_preserves_frozen_review(clients):
     w,b,x=clients;story,c,s=prepare(w,b)
@@ -100,6 +102,8 @@ def test_generated_questions_use_verified_safe_facts_and_create_new_review(clien
 def test_story_state_never_returns_future_or_unreleased_chapters(clients):
     w,b,x=clients;story,c,s=prepare(w,b);s=verify(w,c,s);invite(w,b,story);rid=release(w,b,c,s)
     future=w.post('/api/stories/'+story['id']+'/chapters',json={'title':'Future','content':'A future secret.'}).json()
+    assert b.get('/api/read/'+rid+'/story-state').status_code==409
+    assert b.post('/api/read/'+rid+'/complete').status_code==200
     assert len(b.get('/api/read/'+rid+'/story-state').json())==1
     assert future['title'] not in b.get('/api/read/'+rid+'/story-state').text
     assert w.get('/api/read/'+rid+'/story-state').status_code==404

@@ -35,6 +35,15 @@ async def lifespan(app):
     from .backups import backup_database
     backup_database(force=True)
     Base.metadata.create_all(engine)
+    # Pending AI interpretations remain editable, so safely repair explicit
+    # "the stranger is named ..." aliases produced by older deployments.
+    with SessionLocal() as db:
+        changed=False
+        for snapshot in db.scalars(select(Snapshot).where(Snapshot.status=='pending')):
+            repaired=local_ai.consolidate_explicit_identity_reveals(snapshot.universe,snapshot.content)
+            if repaired!=snapshot.universe:
+                snapshot.universe=repaired;changed=True
+        if changed:db.commit()
     if DEMO_MODE:
         with SessionLocal() as db:
             if not db.scalar(select(User).where(User.email=='writer@storylens.test')):

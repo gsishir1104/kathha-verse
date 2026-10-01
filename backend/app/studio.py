@@ -48,7 +48,7 @@ def boundary(db,r):
 
 def visible_universe(db,r,beta=True):
     s=db.get(Snapshot,r.snapshot_id);end=boundary(db,r)
-    if end<len(s.content): return {'entities':[]} # A chapter summary may reveal its ending even when its citation is earlier.
+    if r.progress<100 or end<len(s.content): return {'entities':[]} # The graph can summarize reveals from anywhere in the chapter.
     return reader_projection(s.universe,beta_graph=beta)
 
 def observation_dict(o,c=None):
@@ -226,7 +226,9 @@ def install_studio(app):
 
     @app.get('/api/read/{release_id}/story-state')
     def reader_state(release_id:str,db:Session=Depends(get_db),u=Depends(current_user)):
-        r=release_for(db,release_id,u);c=db.get(Chapter,r.chapter_id);result=[]
+        r=release_for(db,release_id,u)
+        if r.progress<100:raise HTTPException(409,'Finish this chapter before opening its Story Universe')
+        c=db.get(Chapter,r.chapter_id);result=[]
         for other,ch,s in db.execute(select(Release,Chapter,Snapshot).join(Chapter,Chapter.id==Release.chapter_id).join(Snapshot,Snapshot.id==Release.snapshot_id).where(Release.reader_id==u.id,Release.active==1,Chapter.story_id==c.story_id,Chapter.position<=c.position).order_by(Chapter.position)):
             release_for(db,other.id,u);result.append({'chapter':ch.position,'title':s.title,'snapshot_id':s.id,'revision':s.revision,'universe':visible_universe(db,other)})
         return result

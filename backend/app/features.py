@@ -38,11 +38,13 @@ def install_features(app):
     @app.get('/api/read/{release_id}/graph-comments')
     def comments(release_id:str,db:Session=Depends(get_db),u=Depends(current_user)):
         r=release_for(db,release_id,u)
+        if r.progress<100:raise HTTPException(409,'Finish this chapter before opening its Story Universe')
         return [{'id':g.id,'entity_id':g.entity_id,'target_id':g.target_id,'category':g.category,'text':g.text} for g in db.scalars(select(GraphComment).where(GraphComment.snapshot_id==r.snapshot_id,GraphComment.reader_id==u.id,GraphComment.release_id==r.id).order_by(GraphComment.created))]
 
     @app.post('/api/read/{release_id}/graph-comments')
     def comment(release_id:str,data:GraphCommentIn,db:Session=Depends(get_db),u=Depends(current_user)):
         r=release_for(db,release_id,u)
+        if r.progress<100:raise HTTPException(409,'Finish this chapter before commenting on its Story Universe')
         if r.snapshot_id!=data.snapshot_id: raise HTTPException(409,'This chapter was re-released. Reopen it before commenting.')
         s=db.get(Snapshot,r.snapshot_id)
         entities={e['id']:e for e in visible_universe(db,r,beta=u.role=='beta')['entities']}
@@ -53,7 +55,9 @@ def install_features(app):
 
     @app.get('/api/read/{release_id}/graph-changes')
     def changes(release_id:str,db:Session=Depends(get_db),u=Depends(current_user)):
-        r=release_for(db,release_id,u);c=db.get(Chapter,r.chapter_id);s=db.get(Snapshot,r.snapshot_id)
+        r=release_for(db,release_id,u)
+        if r.progress<100:raise HTTPException(409,'Finish this chapter before opening its Story Universe')
+        c=db.get(Chapter,r.chapter_id);s=db.get(Snapshot,r.snapshot_id)
         previous=db.execute(select(Release,Chapter).join(Chapter,Release.chapter_id==Chapter.id).where(Release.reader_id==u.id,Release.active==1,Chapter.story_id==c.story_id,Chapter.position<c.position).order_by(Chapter.position.desc())).first()
         if not previous:return {'previous_chapter':None,'added':[],'changed':[],'absent':[]}
         prior,chapter=previous;release_for(db,prior.id,u)

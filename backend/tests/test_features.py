@@ -27,6 +27,9 @@ def test_graph_comments_and_writer_workflow_are_scoped_to_snapshot(clients):
     payload={'snapshot_id':s['id'],'entity_id':entity['id'],'target_id':'','category':'confusion','text':'The motivation is unclear.'}
     url='/api/read/'+rid+'/graph-comments'
     assert x.post(url,json=payload).status_code==401
+    assert b.get(url).status_code==409
+    assert b.post(url,json=payload).status_code==409
+    assert b.post('/api/read/'+rid+'/complete').status_code==200
     assert b.post(url,json={**payload,'snapshot_id':'wrong'}).status_code==409
     assert b.post(url,json={**payload,'entity_id':'future-character'}).status_code==422
     assert b.post(url,json={**payload,'target_id':'unknown-edge'}).status_code==422
@@ -80,6 +83,8 @@ def test_comparison_excludes_later_chapters_and_unreleased_drafts(clients):
     s2=verify(w,c2,s2)
     release(w,b,c2,s2)
     shelf=b.get('/api/library').json();second=next(row['id'] for row in shelf if row['position']==2)
+    assert b.post('/api/read/'+first+'/complete').status_code==200
+    assert b.post('/api/read/'+second+'/complete').status_code==200
     early=b.get('/api/read/'+first+'/graph-changes')
     assert early.json()['previous_chapter'] is None and 'LATER_CHAPTER_CANARY' not in early.text
     later=b.get('/api/read/'+second+'/graph-changes')
