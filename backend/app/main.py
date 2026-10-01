@@ -232,7 +232,7 @@ def analyze_chapter(chapter_id:str,detailed:bool=False,db:Session=Depends(get_db
     db.commit() # Do not hold a database transaction during a model request.
     if not (DEMO_MODE and content==SAMPLE_CONTENT):
         with local_ai.allowance(u.id,'analysis'):
-            universe,mode=local_ai.extract_detailed(content) if detailed and local_ai.enabled() else extract(content)
+            universe,mode=local_ai.extract_detailed(content) if detailed else extract(content)
     else: universe,mode=extract(content)
     db.refresh(c)
     if c.revision!=revision: raise HTTPException(409,'The manuscript changed during analysis. Analyze the saved version again.')

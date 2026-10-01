@@ -1,7 +1,7 @@
 from contextlib import nullcontext
 import pytest
 from fastapi import HTTPException
-from app import local_ai
+from app import analysis, local_ai
 from test_vertical_slice import clients
 from app.db import SessionLocal, User
 from sqlalchemy import select
@@ -84,6 +84,22 @@ def test_passages_preserve_exact_unicode_source():
     assert len(sources) == 4
     assert all(text in content and len(text) <= 2000 for text in sources.values())
     assert sources[1] == original
+
+
+def test_hosted_analysis_resolves_unicode_evidence_from_source_id(monkeypatch):
+    content = "The ’King Pritvi' was ruling the village."
+    payload = local_ai.CitedUniverse.model_validate({'entities':[
+        {'name':'King Pritvi','kind':'character','summary':'Rules the village.',
+         'source_id':1,'connections':[],'knowledge':[]}],
+        'questions':[{'text':'How do you feel about King Pritvi?',
+                      'category':'emotion','source_id':1,
+                      'options':['Curious','Uneasy','Sympathetic']} ]})
+    monkeypatch.setattr(analysis,'DEMO_MODE',False)
+    monkeypatch.setattr(local_ai,'structured',lambda *args:payload)
+    universe,_=analysis.extract(content)
+    assert universe['entities'][0]['evidence']==content
+    assert universe['questions'][0]['evidence']==content
+    analysis.validate_universe(local_ai.Universe.model_validate(universe),content)
 
 
 def test_questions_reject_unknown_citations():
