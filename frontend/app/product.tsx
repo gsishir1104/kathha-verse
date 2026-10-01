@@ -7,7 +7,11 @@ import {UniverseView} from './universe';
 
 export function Explorer({snapshot,onChange,act,busy}:{snapshot:Snapshot;onChange:(u:Universe)=>void;act:Act;busy:boolean}){
  const [preview,setPreview]=useState<Universe|null>(null);
- return <><div className="studio-switch"><button className={'button '+(!preview?'primary':'')} onClick={()=>setPreview(null)}>Writer view</button><button className={'button '+(preview?'primary':'')} disabled={busy||snapshot.status!=='verified'} onClick={()=>act(async()=>setPreview(await api('/snapshots/'+snapshot.id+'/preview')))}>Beta reader preview</button><small>{snapshot.status!=='verified'?'Verify this chapter to enable reader preview.':'Chapter-specific state · private knowledge filtered on the server'}</small></div><UniverseView key={snapshot.id+Boolean(preview)} universe={preview||snapshot.universe} onChange={onChange} reader={Boolean(preview)} frozen={snapshot.status==='verified'}/></>
+ function saveUniverse(universe:Universe){
+  const previous=snapshot.universe;onChange(universe);
+  void act(async()=>{try{const saved=await api<Snapshot>('/snapshots/'+snapshot.id,'PUT',universe);onChange(saved.universe)}catch(error){onChange(previous);throw error}},'Review choice saved');
+ }
+ return <><div className="studio-switch"><button className={'button '+(!preview?'primary':'')} onClick={()=>setPreview(null)}>Writer view</button><button className={'button '+(preview?'primary':'')} disabled={busy||snapshot.status!=='verified'} onClick={()=>act(async()=>setPreview(await api('/snapshots/'+snapshot.id+'/preview')))}>Beta reader preview</button><small>{snapshot.status!=='verified'?'Confirm, correct, and reject choices save immediately. Verify this chapter to enable reader preview.':'Chapter-specific state · private knowledge filtered on the server'}</small></div><UniverseView key={snapshot.id+Boolean(preview)} universe={preview||snapshot.universe} onChange={saveUniverse} reader={Boolean(preview)} frozen={snapshot.status==='verified'||busy}/></>
 }
 export function PublishControl({chapter,act,busy}:{chapter:Chapter;act:Act;busy:boolean}){
  const [active,setActive]=useState(false);
