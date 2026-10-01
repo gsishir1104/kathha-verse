@@ -99,8 +99,10 @@ async def boundaries(request, call_next):
         except Exception:
             import logging
             logging.getLogger(__name__).exception('Could not record account activity')
-    if request.url.path.startswith('/api'):
+    if request.url.path.startswith('/api') or not request.url.path.startswith('/_next/static/'):
         response.headers['Cache-Control'] = 'no-store'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
     response.headers['X-Content-Type-Options']='nosniff'
     response.headers['Referrer-Policy']='same-origin'
     response.headers['X-Frame-Options']='DENY'
