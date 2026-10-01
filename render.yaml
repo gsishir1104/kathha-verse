@@ -26,7 +26,9 @@ services:
       - key: AI_SHARED_DAILY_LIMIT
         value: "30"
       - key: PUBLIC_APP_URL
-        value: https://kathha-verse.onrender.com
+        value: https://www.kathhaverse.org
+      - key: FRONTEND_ORIGINS
+        value: https://www.kathhaverse.org,https://kathhaverse.org,https://kathha-verse.onrender.com
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: GOOGLE_CLIENT_SECRET

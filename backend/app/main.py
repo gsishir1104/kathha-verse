@@ -16,9 +16,17 @@ from . import studio_models
 from .welcome_email import WelcomeEmail, start_worker
 from .google_login import router as google_router
 
-ORIGINS = os.getenv('FRONTEND_ORIGINS','http://127.0.0.1:3000,http://localhost:3000,http://127.0.0.1:8000,http://localhost:8000').split(',')
+ORIGINS = [origin.strip().rstrip('/') for origin in os.getenv(
+    'FRONTEND_ORIGINS',
+    'http://127.0.0.1:3000,http://localhost:3000,http://127.0.0.1:8000,http://localhost:8000',
+).split(',') if origin.strip()]
+public_app_url = os.getenv('PUBLIC_APP_URL', '').strip().rstrip('/')
+if public_app_url and public_app_url not in ORIGINS:
+    ORIGINS.append(public_app_url)
 if os.getenv('RENDER_EXTERNAL_HOSTNAME'):
-    ORIGINS.append('https://'+os.environ['RENDER_EXTERNAL_HOSTNAME'])
+    render_origin = 'https://'+os.environ['RENDER_EXTERNAL_HOSTNAME']
+    if render_origin not in ORIGINS:
+        ORIGINS.append(render_origin)
 if PRODUCTION and engine.dialect.name!='postgresql':
     raise RuntimeError('Production requires an explicit PostgreSQL DATABASE_URL')
 
