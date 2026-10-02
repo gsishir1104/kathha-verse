@@ -7,7 +7,7 @@ from sqlalchemy import select, func, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from .db import Base, engine, get_db, SessionLocal, User, SessionToken, Story, Chapter, Snapshot, Invitation, Release, Question, Answer, Feedback, Audit, ChapterHistory, GraphComment, FeedbackState
-from .schemas import Signup, Auth, StoryIn, ChapterIn, Verification, InviteIn, ReleaseIn, AnswerIn, FeedbackIn, Universe, GraphCommentIn, FeedbackStateIn, RestoreIn
+from .schemas import Signup, Auth, StoryIn, ChapterIn, IntentUpdate, Verification, InviteIn, ReleaseIn, AnswerIn, FeedbackIn, Universe, GraphCommentIn, FeedbackStateIn, RestoreIn
 from .security import current_user, writer, user_dict, start_session, password_hash, password_ok, digest, DEMO_MODE, PRODUCTION
 from .analysis import extract, validate_universe, reader_projection, dynamic_questions
 from .sample import SAMPLE_CONTENT, SAMPLE_TITLE
@@ -235,6 +235,17 @@ def save_chapter(chapter_id:str,data:ChapterIn,db:Session=Depends(get_db),u=Depe
     result=db.execute(update(Chapter).where(Chapter.id==c.id,Chapter.revision==data.revision).values(title=data.title,content=data.content,intent=data.intent.model_dump(),revision=data.revision+1,state='draft'))
     if result.rowcount != 1: db.rollback();raise HTTPException(409,'This chapter changed in another tab. Reload before saving.')
     audit(db,u,'chapter_saved',c.id);db.commit();db.refresh(c);return chapter_dict(c)
+@app.put('/api/chapters/{chapter_id}/intent')
+def save_chapter_intent(chapter_id:str,data:IntentUpdate,db:Session=Depends(get_db),u=Depends(writer)):
+    c=owned_chapter(db,chapter_id,u,lock=True)
+    if c.revision!=data.revision: raise HTTPException(409,'This chapter changed in another tab. Reload before saving intent.')
+    if any(scene.evidence and scene.evidence not in c.content for scene in data.intent.scenes):raise HTTPException(422,'Scene intent evidence must match the saved manuscript')
+    intent=data.intent.model_dump()
+    c.intent=intent
+    current=latest_snapshot(db,c)
+    if current and current.status=='pending': current.intent=intent
+    audit(db,u,'chapter_intent_saved',c.id);db.commit();db.refresh(c)
+    return {**chapter_dict(c),'snapshot':snapshot_dict(latest_snapshot(db,c))}
 @app.post('/api/chapters/{chapter_id}/analyze')
 def analyze_chapter(chapter_id:str,detailed:bool=False,db:Session=Depends(get_db),u=Depends(writer)):
     c=owned_chapter(db,chapter_id,u)

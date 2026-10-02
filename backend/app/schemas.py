@@ -46,6 +46,9 @@ class ChapterIn(Strict):
     content: str = Field(default='', max_length=120000)
     revision: int = Field(default=1, ge=1)
     intent: Intent = Field(default_factory=Intent)
+class IntentUpdate(Strict):
+    revision: int = Field(ge=1)
+    intent: Intent
 class Knowledge(Strict):
     text: str = Field(max_length=2000)
     state: Literal['knows','does_not_know','believes','feels']
