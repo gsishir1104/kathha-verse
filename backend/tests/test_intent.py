@@ -1,5 +1,7 @@
 from test_vertical_slice import clients
 from app import local_ai
+from app.db import SessionLocal
+from app.main import restore_equivalent_story_universes
 
 
 def test_intent_suggestions_are_private_unsaved_and_editable(clients, monkeypatch):
@@ -41,3 +43,21 @@ def test_saving_intent_keeps_current_story_universe(clients):
     assert stale.status_code==409
     assert b.put(f'/api/chapters/{chapter["id"]}/intent',json={'revision':chapter['revision'],'intent':intent}).status_code==403
     assert x.put(f'/api/chapters/{chapter["id"]}/intent',json={'revision':chapter['revision'],'intent':intent}).status_code==401
+
+def test_repairs_graph_lost_by_old_intent_save_behavior(clients):
+    w,b,x=clients
+    chapter=w.get('/api/stories').json()[0]['chapters'][0]
+    snapshot=w.post(f'/api/chapters/{chapter["id"]}/manual').json()
+    intent={**chapter['intent'],'emotion':'Concern'}
+    affected=w.put(f'/api/chapters/{chapter["id"]}',json={'title':chapter['title'],'content':chapter['content'],'revision':chapter['revision'],'intent':intent}).json()
+    assert affected['revision']==chapter['revision']+1
+    assert w.get(f'/api/chapters/{chapter["id"]}').json()['snapshot'] is None
+
+    with SessionLocal() as db:
+        assert restore_equivalent_story_universes(db)==1
+        db.commit()
+
+    recovered=w.get(f'/api/chapters/{chapter["id"]}').json()
+    assert recovered['state']=='review'
+    assert recovered['snapshot']['revision']==affected['revision']
+    assert recovered['snapshot']['universe']==snapshot['universe']

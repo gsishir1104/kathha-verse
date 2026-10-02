@@ -1,4 +1,5 @@
 import os, time, secrets, threading
+from copy import deepcopy
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException, Request, Response
@@ -30,6 +31,17 @@ if os.getenv('RENDER_EXTERNAL_HOSTNAME'):
 if PRODUCTION and engine.dialect.name!='postgresql':
     raise RuntimeError('Production requires an explicit PostgreSQL DATABASE_URL')
 
+def restore_equivalent_story_universes(db:Session):
+    restored=0
+    for chapter in db.scalars(select(Chapter)):
+        current=db.scalar(select(Snapshot.id).where(Snapshot.chapter_id==chapter.id,Snapshot.revision==chapter.revision).limit(1))
+        if current: continue
+        previous=db.scalar(select(Snapshot).where(Snapshot.chapter_id==chapter.id).order_by(Snapshot.revision.desc(),Snapshot.created.desc()).limit(1))
+        if not previous or previous.title!=chapter.title or previous.content!=chapter.content: continue
+        db.add(Snapshot(chapter_id=chapter.id,revision=chapter.revision,title=chapter.title,content=chapter.content,intent=deepcopy(chapter.intent),universe=deepcopy(previous.universe),mode=previous.mode,status='pending'))
+        chapter.state='review';restored+=1
+    return restored
+
 @asynccontextmanager
 async def lifespan(app):
     from .backups import backup_database
@@ -43,6 +55,7 @@ async def lifespan(app):
             repaired=local_ai.consolidate_explicit_identity_reveals(snapshot.universe,snapshot.content)
             if repaired!=snapshot.universe:
                 snapshot.universe=repaired;changed=True
+        if restore_equivalent_story_universes(db):changed=True
         if changed:db.commit()
     if DEMO_MODE:
         with SessionLocal() as db:
