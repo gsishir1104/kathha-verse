@@ -214,6 +214,8 @@ def install_studio(app):
             for k in e.knowledge:
                 if k.subject_id==remove.id:k.subject_id=keep.id
                 if k.secret_id==remove.id:k.secret_id=keep.id
+        for fact in v.facts:
+            fact.entity_ids=list(dict.fromkeys(keep.id if entity_id==remove.id else entity_id for entity_id in fact.entity_ids))
         v=Universe.model_validate(v.model_dump());validate_universe(v,s.content);s.universe=v.model_dump();db.commit();return snapshot_dict(s)
 
     @app.get('/api/chapters/{chapter_id}/story-state')

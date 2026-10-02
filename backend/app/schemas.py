@@ -63,6 +63,12 @@ class Relation(Strict):
     label: str = Field(min_length=1,max_length=100)
     strength: int = Field(default=50,ge=0,le=100)
     evidence: str = Field(max_length=3000)
+class ChapterFact(Strict):
+    category: Literal['relationship','location','object','event']
+    text: str = Field(min_length=3,max_length=500)
+    evidence: str = Field(max_length=3000)
+    order: int = Field(ge=1,le=200)
+    entity_ids: list[str] = Field(default_factory=list,max_length=6)
 class Entity(Strict):
     id: str = Field(min_length=1, max_length=100)
     kind: Kind
@@ -96,6 +102,7 @@ class Universe(Strict):
     question_frequency: Literal['each_chapter','key_moments','major_reveals'] = 'each_chapter'
     entities: list[Entity] = Field(max_length=150)
     questions: list[PromptQuestion] = Field(max_length=8)
+    facts: list[ChapterFact] = Field(default_factory=list,max_length=60)
 class Verification(Strict):
     revision: int
     universe: Universe

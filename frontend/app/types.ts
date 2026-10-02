@@ -1,8 +1,9 @@
 export type User = {is_admin?:boolean;staff_role?:string|null;id:string;name:string;email:string;role:'writer'|'beta'|'reader';preferences:{interactive_reading?:boolean}};
 export type Knowledge = {text:string;state:'knows'|'does_not_know'|'believes'|'feels';reader_safe:boolean;evidence:string;subject_id?:string;secret_id?:string;truth?:string};
 export type Entity = {id:string;kind:string;name:string;summary:string;evidence:string;confidence:number;reader_safe:boolean;status:'pending'|'confirmed'|'rejected';links:string[];knowledge:Knowledge[];relations?:{target_id:string;label:string;strength:number;evidence:string}[];goals?:{text:string;evidence:string;reader_safe:boolean}[];conflicts?:{text:string;evidence:string;reader_safe:boolean}[];timeline_order?:number|null;story_time?:string;thread_status?:string;character_status?:string;certainty?:string;uncertainty_reason?:string};
+export type ChapterFact = {category:'relationship'|'location'|'object'|'event';text:string;evidence:string;order:number;entity_ids:string[]};
 export type PromptQuestion = {review_status?:string;text:string;category:string;evidence:string;options?:string[];timing?:string;checkpoint?:number|null;target?:string};
-export type Universe = {question_frequency?:string;entities:Entity[];questions?:PromptQuestion[]};
+export type Universe = {question_frequency?:string;entities:Entity[];questions?:PromptQuestion[];facts?:ChapterFact[]};
 export type Snapshot = {id:string;revision:number;status:string;mode:string;universe:Universe};
 export type Intent = {emotion?:string;tension?:number|null;prediction_target?:string;desired_predictability?:number|null;notes?:string;targets?:{metric:string;target:string;expected:number;reveal_chapter:number|null;notes:string}[];scenes?:{label:string;evidence:string;reaction:string}[]};
 export type Chapter = {id:string;story_id:string;position:number;title:string;content:string;revision:number;intent:Intent;state:string;snapshot?:Snapshot|null};

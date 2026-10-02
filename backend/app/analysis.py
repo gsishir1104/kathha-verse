@@ -18,6 +18,9 @@ def validate_universe(data, content, reviewed=False):
                 if not point.evidence or point.evidence not in content: raise HTTPException(422,'Character and relationship evidence must match the chapter')
             if any(r.target_id not in ids for r in e.relations): raise HTTPException(422,'Unknown relationship target')
             if any(k.subject_id and k.subject_id not in ids or k.secret_id and k.secret_id not in ids for k in e.knowledge): raise HTTPException(422,'Unknown knowledge reference')
+    for fact in data.facts:
+        if not fact.evidence or fact.evidence not in content: raise HTTPException(422,'Chapter fact evidence must match the chapter')
+        if any(entity_id not in ids for entity_id in fact.entity_ids): raise HTTPException(422,'Unknown chapter fact reference')
     for q in data.questions:
         if q.review_status=='rejected':continue
         if reviewed and q.review_status!='approved':raise HTTPException(422,'Approve or reject each question before verification')
@@ -42,7 +45,11 @@ def reader_projection(universe, beta_graph=False):
         item['relations']=[r for r in e.get('relations',[]) if r['target_id'] in ids]
         for field in ['goals','conflicts']:item[field]=[p for p in e.get(field,[]) if p['reader_safe']]
         result.append(item)
-    return {'entities':result}
+    facts=[]
+    for fact in universe.get('facts',[]):
+        refs=set(fact.get('entity_ids',[]))
+        if refs and refs<=ids:facts.append(fact)
+    return {'entities':result,'facts':facts}
 
 class Questions(Strict):
     questions: list[PromptQuestion]

@@ -136,6 +136,23 @@ def test_labeled_relationships_are_kept_with_exact_evidence(monkeypatch):
     nora=universe['entities'][0]
     assert nora['relations']==[{'target_id':'local-2','label':'enters','strength':50,'evidence':'Nora enters the locked house.'}]
 
+def test_chapter_facts_keep_order_category_entities_and_exact_evidence(monkeypatch):
+    content='Nora finds the key and enters the locked house.'
+    payload=local_ai.CitedUniverse.model_validate({'entities':[
+        {'name':'Nora','kind':'character','summary':'Finds a key.','source_id':1,'connections':['Key','House'],'knowledge':[]},
+        {'name':'Key','kind':'object','summary':'A discovered key.','source_id':1,'connections':[],'knowledge':[]},
+        {'name':'House','kind':'location','summary':'A locked house.','source_id':1,'connections':[],'knowledge':[]}],
+        'facts':[
+            {'category':'object','text':'Nora finds the key.','source_id':1,'order':1,'related_entities':['Nora','Key']},
+            {'category':'location','text':'Nora enters the locked house.','source_id':1,'order':2,'related_entities':['Nora','House']}],
+        'questions':[{'text':'What do you think Nora will find inside?','category':'prediction','source_id':1}]})
+    monkeypatch.setattr(local_ai,'structured',lambda *args:payload)
+    universe,_=local_ai.extract_local(content)
+    assert [fact['category'] for fact in universe['facts']]==['object','location']
+    assert universe['facts'][0]['entity_ids']==['local-1','local-2']
+    assert all(fact['evidence']==content for fact in universe['facts'])
+    analysis.validate_universe(local_ai.Universe.model_validate(universe),content)
+
 def test_explicit_name_reveal_merges_alias_and_remaps_every_reference():
     content='Samyukta followed the Strange Man. “What should I call you?” Samyukta asked. “Abhi,” he replied simply.'
     universe={'entities':[
