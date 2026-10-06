@@ -268,6 +268,8 @@ def analyze_chapter(chapter_id:str,detailed:bool=False,db:Session=Depends(get_db
     if not (DEMO_MODE and content==SAMPLE_CONTENT):
         with local_ai.allowance(u.id,'analysis'):
             universe,mode=local_ai.extract_detailed(content) if detailed else extract(content)
+            from .graph_connections import enrich_graph
+            universe=enrich_graph(universe,content)
     else: universe,mode=extract(content)
     db.refresh(c)
     if c.revision!=revision: raise HTTPException(409,'The manuscript changed during analysis. Analyze the saved version again.')
