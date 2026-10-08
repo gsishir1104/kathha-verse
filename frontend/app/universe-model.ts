@@ -72,3 +72,20 @@ export function orderedEvents(graph:UniverseGraph){
 }
 
 export function entityForItem(universe:Universe,item:GraphItem):Entity|undefined{return universe.entities.find(e=>e.id===item.entityId)}
+
+/** An event shows only its own people and places, never their unrelated relationships. */
+export function eventGraph(graph:UniverseGraph,eventId:string):UniverseGraph{
+ const event=graph.items.find(n=>n.id===eventId&&n.kind==='event');
+ if(!event)return {items:[],connections:[]};
+ const neighbors=new Map<string,GraphConnection>();
+ for(const connection of graph.connections){
+  if(connection.source!==eventId&&connection.target!==eventId)continue;
+  const other=connection.source===eventId?connection.target:connection.source;
+  const item=graph.items.find(n=>n.id===other);
+  if(!item||!['character','location'].includes(item.kind))continue;
+  const previous=neighbors.get(other);
+  if(!previous||(previous.generic&&!connection.generic))neighbors.set(other,connection);
+ }
+ const ids=new Set([eventId,...neighbors.keys()]);
+ return {items:graph.items.filter(n=>ids.has(n.id)),connections:[...neighbors.values()]};
+}
