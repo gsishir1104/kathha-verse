@@ -1,6 +1,6 @@
 import type {Entity, Universe} from './types';
 
-export type GraphItem={id:string;name:string;kind:string;entityId?:string;summary:string;evidence:string;order?:number;storyTime?:string;certainty?:string};
+export type GraphItem={id:string;name:string;kind:string;entityId?:string;summary:string;evidence:string;order?:number;storyTime?:string;certainty?:string;synthetic?:boolean};
 export type GraphConnection={id:string;source:string;target:string;label:string;evidence:string;generic:boolean};
 export type UniverseGraph={items:GraphItem[];connections:GraphConnection[]};
 
@@ -19,12 +19,16 @@ export function buildUniverseGraph(universe:Universe):UniverseGraph{
  for(const entity of entities)for(const target of entity.links||[]){
   if(!connections.some(c=>(c.source===entity.id&&c.target===target)||(c.target===entity.id&&c.source===target)))add(entity.id,target,'Connected · role unspecified',entity.evidence,true);
  }
- // A multi-entity fact is a statement node, not a clique of invented relationships.
+ // Facts support existing events. Prose statements are never extra graph nodes.
  for(const [index,fact] of (universe.facts||[]).entries()){
   if(!fact.entity_ids.length||!fact.entity_ids.every(id=>ids.has(id)))continue;
   const existingEvent=fact.category==='event'?entities.find(e=>e.kind==='event'&&fact.entity_ids.includes(e.id)):undefined;
   let id=existingEvent?.id;
-  if(!id){id='fact:'+index;while(ids.has(id))id='fact:'+id;ids.add(id);items.push({id,name:fact.text,kind:fact.category==='event'?'event':'statement',summary:fact.text,evidence:fact.evidence});}
+  if(!id){
+   if(fact.category!=='event')continue;
+   id='fact:'+index;while(ids.has(id))id='fact:'+id;ids.add(id);
+   items.push({id,name:fact.text,kind:'event',summary:fact.text,evidence:fact.evidence,synthetic:true});
+  }
   for(const target of fact.entity_ids){
    if(target!==id&&!connections.some(c=>(c.source===id&&c.target===target)||(c.source===target&&c.target===id)))add(id,target,'Referenced in event'+(fact.category==='event'?'':' / fact'),fact.evidence,true);
   }

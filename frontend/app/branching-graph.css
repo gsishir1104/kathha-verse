@@ -1,0 +1,13 @@
+/* Compact Model A presentation. Only names live in nodes; evidence stays in details. */
+.connected-universe .connected-node{width:220px;min-height:82px;display:flex;align-items:center;justify-content:center;padding:18px 20px;background:var(--paper);color:var(--ink);border:1px solid var(--blue);border-radius:24px;box-shadow:none;text-align:center}
+.connected-universe .connected-node strong{font-size:18px;line-height:1.35;font-weight:500;-webkit-line-clamp:2}
+.connected-universe .connected-node.is-active{outline:2px solid var(--blue);outline-offset:4px}
+.connected-universe .connected-node .react-flow__handle{opacity:0}
+.connected-universe .connected-canvas{background:var(--canvas)}
+.connected-navigation{display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:.8rem;color:var(--muted);margin:10px 0}
+.connected-navigation label{display:flex;align-items:center;gap:7px;margin-left:auto}
+.connected-navigation input{width:auto!important}
+.connected-universe .react-flow__edge-text{font-family:inherit}
+.connected-universe .react-flow__background{opacity:.2}
+@media(max-width:700px){.connected-navigation label{margin-left:0}.connected-universe .connected-canvas{min-height:560px}.connected-picker select{width:100%}}
+.connected-universe .connected-canvas{overflow:auto}.connected-flow{min-width:100%}.branch-edge-label{position:absolute;background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:18px;padding:5px 12px;font-size:15px;font-weight:500;white-space:nowrap;pointer-events:none;}
