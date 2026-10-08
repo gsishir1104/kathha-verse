@@ -30,3 +30,14 @@ def test_chronology_allows_flashback_order_and_unknown_time():
         EventPosition(entity_id='person',position=3,passage_id=1)])
     result=apply_proposals(original,proposals,{1:'A visits B.'})
     assert [e['timeline_order'] for e in result['entities']]==[2,1,None,None]
+
+def test_final_state_separates_actions_and_rejects_acting_locations():
+    original={'entities':[entity('sam'),entity('abhi'),entity('village','location')],'questions':[]}
+    original['entities'][0]['relations']=[dict(target_id='abhi',label='follows',strength=50,evidence='A visits B.')]
+    proposals=GraphProposals(connections=[
+        ConnectionProposal(source_id='sam',target_id='abhi',label='growing affection',scope='current',passage_id=1),
+        ConnectionProposal(source_id='village',target_id='abhi',label='pursuer',scope='current',passage_id=1)])
+    result=apply_proposals(original,proposals,{1:'A visits B.'})
+    assert [r['scope'] for r in result['entities'][0]['relations']]==['history','current']
+    assert result['entities'][2]['relations']==[]
+    assert 'scope' not in original['entities'][0]['relations'][0]

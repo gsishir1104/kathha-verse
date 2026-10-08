@@ -5,7 +5,7 @@ export type GraphConnection={id:string;source:string;target:string;label:string;
 export type UniverseGraph={items:GraphItem[];connections:GraphConnection[]};
 
 /** Only use references present in the supplied (server-projected for readers) snapshot. */
-export function buildUniverseGraph(universe:Universe):UniverseGraph{
+export function buildUniverseGraph(universe:Universe,currentOnly=false):UniverseGraph{
  const entities=universe.entities.filter(e=>e.status!=='rejected');
  const ids=new Set(entities.map(e=>e.id));
  const items:GraphItem[]=entities.map(e=>({id:e.id,entityId:e.id,name:e.name,kind:e.kind,summary:e.summary,evidence:e.evidence,order:e.timeline_order??undefined,storyTime:e.story_time,certainty:e.certainty}));
@@ -15,7 +15,17 @@ export function buildUniverseGraph(universe:Universe):UniverseGraph{
   if(connections.some(c=>c.source===source&&c.target===target&&c.label===label))return;
   connections.push({id:'connection-'+connections.length,source,target,label,evidence,generic});
  };
- for(const entity of entities)for(const relation of entity.relations||[])add(entity.id,relation.target_id,relation.label,relation.evidence);
+ for(const entity of entities)for(const relation of entity.relations||[]){
+  if(currentOnly&&relation.scope!=='current')continue;
+  const inverse:Record<string,string>={'daughter of':'parent of','son of':'parent of','child of':'parent of'};
+  const label=relation.label.toLowerCase().trim();
+  if(currentOnly&&inverse[label]&&entities.find(e=>e.id===relation.target_id)?.relations?.some(r=>r.target_id===entity.id&&r.scope==='current'&&['father of','mother of','parent of'].includes(r.label.toLowerCase().trim())))continue;
+  add(entity.id,relation.target_id,relation.label,relation.evidence);
+ }
+ if(currentOnly){
+  const linked=new Set(connections.flatMap(c=>[c.source,c.target]));
+  return {items:items.filter(n=>n.kind==='character'||linked.has(n.id)),connections};
+ }
  for(const entity of entities)for(const target of entity.links||[]){
   if(!connections.some(c=>(c.source===entity.id&&c.target===target)||(c.target===entity.id&&c.source===target)))add(entity.id,target,'Connected · role unspecified',entity.evidence,true);
  }

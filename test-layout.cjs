@@ -14,3 +14,7 @@ assert(!built.items.some(n=>n.kind==='statement'));assert.equal(orderedEvents(bu
 const cycle={items:items.slice(0,3),connections:[{...connections[0],source:'0',target:'1'},{...connections[0],source:'1',target:'0'}]};assert.equal(branchingLayout(cycle).positions.size,3);
 console.log('Passed: 49-node pagination, every character reachable, bounded connections, no statement nodes, timeline retained, cycle-safe layout.');
 
+const finalState=buildUniverseGraph({entities:[{...entity,id:'parent',relations:[{target_id:'child',label:'father of',scope:'current'}]},{...entity,id:'child',relations:[{target_id:'parent',label:'daughter of',scope:'current'},{target_id:'parent',label:'warns',scope:'history'}]}]},true);
+assert.equal(finalState.connections.length,1);assert.equal(finalState.connections[0].label,'father of');
+assert.equal(buildUniverseGraph({entities:[{...entity,relations:[{target_id:'b',label:'partner'}]},{...entity,id:'b'}]},true).connections.length,0);
+console.log('Passed: current state excludes historical actions and unclassified legacy claims; inverse family edges consolidated.');

@@ -62,6 +62,7 @@ class CharacterPoint(Strict):
     evidence: str = Field(max_length=3000)
     reader_safe: bool = False
 class Relation(Strict):
+    scope: Literal['current','history','unspecified'] = 'unspecified'
     target_id: str
     label: str = Field(min_length=1,max_length=100)
     strength: int = Field(default=50,ge=0,le=100)

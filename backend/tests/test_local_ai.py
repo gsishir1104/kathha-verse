@@ -134,7 +134,7 @@ def test_labeled_relationships_are_kept_with_exact_evidence(monkeypatch):
     monkeypatch.setattr(local_ai,'structured',lambda *args:payload)
     universe,_=local_ai.extract_local('Nora enters the locked house.')
     nora=universe['entities'][0]
-    assert nora['relations']==[{'target_id':'local-2','label':'enters','strength':50,'evidence':'Nora enters the locked house.'}]
+    assert nora['relations']==[{'scope':'unspecified','target_id':'local-2','label':'enters','strength':50,'evidence':'Nora enters the locked house.'}]
 
 def test_chapter_facts_keep_order_category_entities_and_exact_evidence(monkeypatch):
     content='Nora finds the key and enters the locked house.'
