@@ -16,10 +16,12 @@ export function buildUniverseGraph(universe:Universe,currentOnly=false):Universe
   connections.push({id:'connection-'+connections.length,source,target,label,evidence,generic});
  };
  for(const entity of entities)for(const relation of entity.relations||[]){
-  if(currentOnly&&relation.scope!=='current')continue;
+  const legacyFamily=!relation.scope||relation.scope==='unspecified';
+  const family=/^(father|mother|parent|daughter|son|child|sister|brother|sibling) of$/i.test(relation.label.trim());
+  if(currentOnly&&relation.scope!=='current'&&!(legacyFamily&&family))continue;
   const inverse:Record<string,string>={'daughter of':'parent of','son of':'parent of','child of':'parent of'};
   const label=relation.label.toLowerCase().trim();
-  if(currentOnly&&inverse[label]&&entities.find(e=>e.id===relation.target_id)?.relations?.some(r=>r.target_id===entity.id&&r.scope==='current'&&['father of','mother of','parent of'].includes(r.label.toLowerCase().trim())))continue;
+  if(currentOnly&&inverse[label]&&entities.find(e=>e.id===relation.target_id)?.relations?.some(r=>r.target_id===entity.id&&r.scope!=='history'&&['father of','mother of','parent of'].includes(r.label.toLowerCase().trim())))continue;
   add(entity.id,relation.target_id,relation.label,relation.evidence);
  }
  if(currentOnly){

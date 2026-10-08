@@ -19,6 +19,10 @@ export function overviewGraph(graph:UniverseGraph,focus='',page=0,showReferences
 
 /** Directed ranks with cycle breaking; no fixed per-kind columns. */
 export function branchingLayout(graph:UniverseGraph){
+ if(!graph.connections.length){
+ const positions=new Map(graph.items.map((n,i)=>[n.id,{x:28+(i%2)*260,y:28+Math.floor(i/2)*120}]));
+ return {positions,routes:new Map<string,{points:{x:number;y:number}[];x:number;y:number}>(),width:Math.min(2,graph.items.length)*260+56,height:Math.max(300,Math.ceil(graph.items.length/2)*120+56)};
+ }
  const g=new dagre.graphlib.Graph({multigraph:true});
  g.setGraph({rankdir:'TB',nodesep:65,ranksep:90,edgesep:30,marginx:28,marginy:28});
  g.setDefaultEdgeLabel(()=>({}));

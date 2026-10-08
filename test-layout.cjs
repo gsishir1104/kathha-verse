@@ -18,3 +18,7 @@ const finalState=buildUniverseGraph({entities:[{...entity,id:'parent',relations:
 assert.equal(finalState.connections.length,1);assert.equal(finalState.connections[0].label,'father of');
 assert.equal(buildUniverseGraph({entities:[{...entity,relations:[{target_id:'b',label:'partner'}]},{...entity,id:'b'}]},true).connections.length,0);
 console.log('Passed: current state excludes historical actions and unclassified legacy claims; inverse family edges consolidated.');
+const legacy=buildUniverseGraph({entities:[{...entity,id:'king',relations:[{target_id:'sam',label:'father of'}]},{...entity,id:'sam',relations:[{target_id:'king',label:'daughter of'},{target_id:'abhi',label:'warns'},{target_id:'abhi',label:'partner'}]},{...entity,id:'abhi'}]},true);
+assert.equal(legacy.connections.length,1);assert.equal(legacy.connections[0].label,'father of');assert.equal(legacy.items.length,3);
+const disconnected=branchingLayout({items:items.slice(0,6),connections:[]});assert(disconnected.width<800);assert.equal(new Set([...disconnected.positions.values()].map(p=>p.x)).size,2);
+console.log('Passed: legacy family connections preserved without inventing feelings; disconnected cards use a compact grid.');
