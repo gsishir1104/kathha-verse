@@ -81,6 +81,8 @@ from .admin import router as admin_router
 app.include_router(admin_router)
 from .operations import router as operations_router
 app.include_router(operations_router)
+from .support_recovery import router as recovery_router
+app.include_router(recovery_router)
 from .chat import router as chat_router
 app.include_router(chat_router)
 from .companion import router as companion_router

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from .db import get_db,SessionLocal,engine,User,Story,Chapter,Snapshot,Invitation,Release,AdminEvent,Notification,UserPresence
 from .security import current_user,is_admin
 from .ops_models import Case,CaseReply,GuestCase,OperationEvent,OperationSetting,AIJob
-from .support_delivery import CaseDetails, SupportMail, enqueue
+from .support_delivery import CaseDetails, SupportMail, enqueue, queue_reply, notify_guest, support_settings
 router=APIRouter()
 def staff_role(u):
     if u.id in {v.strip() for v in os.getenv('ADMIN_USER_IDS','').split(',')}:return 'owner'
@@ -31,6 +31,7 @@ class CaseIn(BaseModel):
     urgency:Literal['low','normal','high','urgent']='normal'
     screenshot:str=Field(default='',max_length=2800000)
 class ReplyIn(BaseModel):
+    send_email:bool=False
     body:str=Field(min_length=3,max_length=10000)
 class CaseUpdate(Reason):
     status:Literal['open','investigating','waiting_for_user','resolved','escalated']
@@ -61,14 +62,18 @@ def get_case(case_id:str,db:Session=Depends(get_db),u=Depends(current_user)):
     c=db.get(Case,case_id) or db.get(GuestCase,case_id)
     if not c or not can_case(u,c):raise HTTPException(404,'Case not found')
     if c.user_id!=u.id:audit(db,u,'case_viewed',c.id,'Support investigation');db.commit()
-    if isinstance(c,GuestCase):return {**case_dict(c),'guest':True,'contact_email':c.email,'replies':c.messages}
+    if isinstance(c,GuestCase):return {**case_dict(c),'guest':True,'contact_email':c.email,'email_enabled':bool(support_settings()),'email_delivery':[m.status for m in db.scalars(select(SupportMail).where(SupportMail.case_id==c.id,SupportMail.recipient==c.email))],'replies':c.messages}
     details=db.get(CaseDetails,c.id)
-    return {**case_dict(c),'urgency':details.urgency if details else 'normal','screenshot':details.screenshot if details else '', 'email_enabled':os.getenv('MAIL_ENABLED','false')=='true','email_delivery':[m.status for m in db.scalars(select(SupportMail).where(SupportMail.case_id==c.id))],'replies':[{'id':r.id,'author':db.get(User,r.author_id).name,'body':r.body,'created':r.created} for r in db.scalars(select(CaseReply).where(CaseReply.case_id==c.id).order_by(CaseReply.created))]}
+    return {**case_dict(c),'urgency':details.urgency if details else 'normal','screenshot':details.screenshot if details else '', 'email_enabled':bool(support_settings()),'email_delivery':[m.status for m in db.scalars(select(SupportMail).where(SupportMail.case_id==c.id))],'replies':[{'id':r.id,'author':db.get(User,r.author_id).name,'body':r.body,'created':r.created} for r in db.scalars(select(CaseReply).where(CaseReply.case_id==c.id).order_by(CaseReply.created))]}
 @router.post('/api/support/cases/{case_id}/replies')
 def reply(case_id:str,data:ReplyIn,db:Session=Depends(get_db),u=Depends(current_user)):
     c=db.get(Case,case_id) or db.get(GuestCase,case_id)
     if not c or not can_case(u,c):raise HTTPException(404,'Case not found')
     if not data.body.strip():raise HTTPException(422,'Message required')
+    if data.send_email:
+        if staff_role(u) not in ('owner','support','moderator') or c.user_id==u.id:raise HTTPException(403,'Staff access required to email a reply')
+        if not support_settings():raise HTTPException(503,'Email sending is not configured. The reply has not been sent.')
+        queue_reply(db,c,data.body.strip())
     if isinstance(c,GuestCase):
         c.messages=[*c.messages,{'id':secrets.token_hex(16),'author':'Support','body':data.body.strip(),'created':time.time()}];c.updated=time.time()
         audit(db,u,'case_reply',c.id,'Reply to guest participant');db.commit();return {'ok':True}
@@ -76,7 +81,7 @@ def reply(case_id:str,data:ReplyIn,db:Session=Depends(get_db),u=Depends(current_
     if c.user_id!=u.id:
         audit(db,u,'case_reply',c.id,'Reply to participant')
         db.add(Notification(sender_id=u.id,user_id=c.user_id,title='Support replied: '+c.subject[:130],body='Open Help & support to read the reply.'))
-    enqueue(db,c,u,'Support replied' if c.user_id!=u.id else 'Requester replied')
+    if not data.send_email:enqueue(db,c,u,'Support replied' if c.user_id!=u.id else 'Requester replied')
     db.commit();return {'ok':True}
 @router.get('/api/admin/ops/cases')
 def cases(category:str='',status:str='',db:Session=Depends(get_db),u=Depends(permit('support','moderator'))):
@@ -176,7 +181,7 @@ def guest_create(data:GuestRequest,request:Request,db:Session=Depends(get_db)):
     if len(data.subject.strip())<3 or len(data.body.strip())<3:raise HTTPException(422,'Please enter a subject and message')
     token=secrets.token_urlsafe(32)
     c=GuestCase(email=data.email.strip().lower(),subject=data.subject.strip(),token_hash=hashlib.sha256(token.encode()).hexdigest(),messages=[{'id':secrets.token_hex(16),'author':'Requester (unverified)','body':data.body.strip(),'created':time.time()}])
-    db.add(c);db.commit()
+    db.add(c);db.flush();notify_guest(db,c);db.commit()
     return {'id':c.id,'token':token}
 @router.post('/api/support/guest/check')
 def guest_check(data:GuestAccess,request:Request,db:Session=Depends(get_db)):
@@ -186,7 +191,7 @@ def guest_check(data:GuestAccess,request:Request,db:Session=Depends(get_db)):
     if not c or not hmac.compare_digest(c.token_hash,hashlib.sha256(data.token.encode()).hexdigest()):raise HTTPException(404,'Request or access code not found')
     if data.body:
         if len(data.body.strip())<3:raise HTTPException(422,'Please enter a message')
-        c.messages=[*c.messages,{'id':secrets.token_hex(16),'author':'Requester (unverified)','body':data.body.strip(),'created':time.time()}];c.updated=time.time();db.commit()
+        c.messages=[*c.messages,{'id':secrets.token_hex(16),'author':'Requester (unverified)','body':data.body.strip(),'created':time.time()}];c.updated=time.time();notify_guest(db,c);db.commit()
     return {**case_dict(c),'replies':c.messages}
 
 @router.get('/api/admin/ops/case-assignees/{case_id}')
