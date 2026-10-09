@@ -11,3 +11,5 @@
 .connected-universe .react-flow__background{opacity:.2}
 @media(max-width:700px){.connected-navigation label{margin-left:0}.connected-universe .connected-canvas{min-height:560px}.connected-picker select{width:100%}}
 .connected-universe .connected-canvas{overflow:auto}.connected-flow{min-width:100%}.branch-edge-label{position:absolute;background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:18px;padding:5px 12px;font-size:15px;font-weight:500;white-space:nowrap;pointer-events:none;}
+
+.branch-edge-label{white-space:normal;max-width:190px;text-align:center;line-height:1.35;overflow-wrap:anywhere}

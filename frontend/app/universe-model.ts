@@ -19,10 +19,13 @@ export function buildUniverseGraph(universe:Universe,currentOnly=false):Universe
   const legacyFamily=!relation.scope||relation.scope==='unspecified';
   const family=/^(father|mother|parent|daughter|son|child|sister|brother|sibling) of$/i.test(relation.label.trim());
   if(currentOnly&&relation.scope!=='current'&&!(legacyFamily&&family))continue;
+  if(currentOnly&&entity.kind!=='character'&&entities.find(e=>e.id===relation.target_id)?.kind!=='character')continue;
   const inverse:Record<string,string>={'daughter of':'parent of','son of':'parent of','child of':'parent of'};
-  const label=relation.label.toLowerCase().trim();
+  const label=relation.label.replaceAll('_',' ').toLowerCase().trim();
+  // Historical action labels from older AI snapshots must not become final-state claims.
+  if(currentOnly&&/^(leads?|points?|places? hand|takes?|admires?|shows?|enters?|ventures?|warns?|warned|follows?|guides?|meets?|visits?|runs?|flees?|escapes?|downplays?|shelters?|stays?)\b/.test(label))continue;
   if(currentOnly&&inverse[label]&&entities.find(e=>e.id===relation.target_id)?.relations?.some(r=>r.target_id===entity.id&&r.scope!=='history'&&['father of','mother of','parent of'].includes(r.label.toLowerCase().trim())))continue;
-  add(entity.id,relation.target_id,relation.label,relation.evidence);
+  add(entity.id,relation.target_id,relation.label.replaceAll('_',' '),relation.evidence);
  }
  if(currentOnly){
   const linked=new Set(connections.flatMap(c=>[c.source,c.target]));

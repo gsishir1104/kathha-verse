@@ -35,9 +35,23 @@ def test_final_state_separates_actions_and_rejects_acting_locations():
     original={'entities':[entity('sam'),entity('abhi'),entity('village','location')],'questions':[]}
     original['entities'][0]['relations']=[dict(target_id='abhi',label='follows',strength=50,evidence='A visits B.')]
     proposals=GraphProposals(connections=[
-        ConnectionProposal(source_id='sam',target_id='abhi',label='growing affection',scope='current',passage_id=1),
+        ConnectionProposal(source_id='sam',target_id='abhi',label='growing affection',scope='current',state_kind='feeling',passage_id=1),
         ConnectionProposal(source_id='village',target_id='abhi',label='pursuer',scope='current',passage_id=1)])
     result=apply_proposals(original,proposals,{1:'A visits B.'})
     assert [r['scope'] for r in result['entities'][0]['relations']]==['history','current']
     assert result['entities'][2]['relations']==[]
     assert 'scope' not in original['entities'][0]['relations'][0]
+
+
+def test_transient_actions_cannot_become_current_even_if_model_marks_them_current():
+    original={'entities':[entity('sam'),entity('forest','location')],'questions':[]}
+    proposals=GraphProposals(connections=[
+        ConnectionProposal(source_id='sam',target_id='forest',label='places_hand_on_tree',scope='current',state_kind='whereabouts',passage_id=1),
+        ConnectionProposal(source_id='sam',target_id='forest',label='last_seen_at',scope='current',state_kind='whereabouts',passage_id=1)])
+    result=apply_proposals(original,proposals,{1:'A visits B.'})
+    assert [(r['label'],r['scope']) for r in result['entities'][0]['relations']]==[('places hand on tree','history'),('last seen at','current')]
+
+def test_current_categories_require_correct_entity_types():
+    original={'entities':[entity('sam'),entity('forest','location')],'questions':[]}
+    result=apply_proposals(original,GraphProposals(connections=[ConnectionProposal(source_id='sam',target_id='forest',label='growing affection',scope='current',state_kind='feeling',passage_id=1)]),{1:'A visits B.'})
+    assert not result['entities'][0]['relations']

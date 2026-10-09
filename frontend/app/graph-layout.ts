@@ -3,7 +3,13 @@ import dagre from '@dagrejs/dagre';
 
 /** Bounded connected overview; all entities remain accessible in the selector. */
 export function overviewGraph(graph:UniverseGraph,focus='',page=0,showReferences=false):UniverseGraph{
- const connections=graph.connections.filter(c=>showReferences||!c.generic);
+ const groups=new Map<string,typeof graph.connections[number]>();
+ for(const c of graph.connections.filter(c=>showReferences||!c.generic)){
+  const key=c.source+'\0'+c.target,previous=groups.get(key);
+  if(!previous)groups.set(key,{...c});
+  else if(!previous.label.split(' · ').includes(c.label))previous.label+=' · '+c.label;
+ }
+ const connections=[...groups.values()];
  const degree=(id:string)=>connections.filter(c=>c.source===id||c.target===id).length;
  const ranked=[...graph.items].sort((a,b)=>degree(b.id)-degree(a.id)||a.name.localeCompare(b.name));
  const root=graph.items.find(n=>n.id===focus)||ranked.find(n=>n.kind==='character')||ranked[0];
@@ -41,7 +47,7 @@ export function branchingLayout(graph:UniverseGraph){
  g.setGraph({rankdir:'TB',nodesep:65,ranksep:90,edgesep:30,marginx:28,marginy:28});
  g.setDefaultEdgeLabel(()=>({}));
  graph.items.forEach(n=>g.setNode(n.id,{width:220,height:82}));
- graph.connections.forEach(c=>g.setEdge(c.source,c.target,{width:Math.max(70,c.label.length*8+24),height:34,labelpos:'c'},c.id));
+ graph.connections.forEach(c=>g.setEdge(c.source,c.target,{width:Math.min(190,Math.max(70,c.label.length*8+24)),height:Math.max(34,Math.ceil(c.label.length/22)*22+12),labelpos:'c'},c.id));
  try { dagre.layout(g); } catch { return fallbackLayout(graph); }
  if(graph.items.some(n=>{const p=g.node(n.id);return !p||!Number.isFinite(p.x)||!Number.isFinite(p.y)}))return fallbackLayout(graph);
  const positions=new Map<string,{x:number;y:number}>();
