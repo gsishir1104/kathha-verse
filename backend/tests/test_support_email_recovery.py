@@ -29,6 +29,26 @@ def test_guest_email_reply_and_admin_notification(clients,monkeypatch):
         assert msg['Message-ID']
     assert g.post('/api/support/guest/check',json=c).json()['replies'][-1]['body']=='Here is your support response.'
 
+def test_resolving_case_queues_one_customer_email(clients,monkeypatch):
+    w,b,g,c,config=setup_case(clients,monkeypatch)
+    url='/api/admin/ops/cases/'+c['id']
+    payload={'status':'resolved','reason':'We restored access to your account.','assigned_to':None}
+    result=w.put(url,json=payload)
+    assert result.status_code==200
+    assert result.json()['resolution_email']=='queued'
+    with SessionLocal() as db:
+        mails=list(db.scalars(select(SupportMail).where(SupportMail.case_id==c['id'],SupportMail.event=='Issue resolved')))
+        assert len(mails)==1
+        content=db.get(SupportMailContent,mails[0].id)
+        msg=message(mails[0],config,content.body)
+        assert msg['Subject'].startswith('KathhaVerse support issue resolved')
+        assert 'We restored access to your account.' in msg.get_content()
+    again=w.put(url,json={**payload,'reason':'A later internal note.'})
+    assert again.status_code==200
+    assert again.json()['resolution_email']=='not_requested'
+    with SessionLocal() as db:
+        assert len(list(db.scalars(select(SupportMail).where(SupportMail.case_id==c['id'],SupportMail.event=='Issue resolved'))))==1
+
 def test_reset_link_private_single_use_and_revokes_sessions(clients,monkeypatch):
     w,b,g,c,config=setup_case(clients,monkeypatch)
     url='/api/admin/ops/cases/'+c['id']+'/password-reset'
@@ -74,3 +94,4 @@ def test_worker_sends_from_support_and_clears_queued_content(clients,monkeypatch
     with SessionLocal() as db:
         assert db.scalar(select(SupportMailContent)) is None
         assert all(m.status=='sent' for m in db.scalars(select(SupportMail)))
+
