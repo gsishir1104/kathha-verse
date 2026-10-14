@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from .db import get_db,SessionLocal,engine,User,Story,Chapter,Snapshot,Invitation,Release,AdminEvent,Notification,UserPresence
 from .security import current_user,is_admin
 from .ops_models import Case,CaseReply,GuestCase,OperationEvent,OperationSetting,AIJob
-from .support_delivery import CaseDetails, SupportMail, enqueue, queue_reply, notify_guest, support_settings
+from .support_delivery import CaseDetails, SupportMail, enqueue, queue_reply, queue_resolution, notify_guest, support_settings
 router=APIRouter()
 def staff_role(u):
     if u.id in {v.strip() for v in os.getenv('ADMIN_USER_IDS','').split(',')}:return 'owner'
@@ -100,10 +100,19 @@ def update_case(case_id:str,data:CaseUpdate,db:Session=Depends(get_db),u=Depends
     if data.assigned_to:
         assignee=db.get(User,data.assigned_to)
         if not assignee or not staff_role(assignee) or not can_case(assignee,c):raise HTTPException(422,'Assignee needs access to this case')
+    previous_status=c.status
+    resolution_email='not_requested'
+    if data.status=='resolved' and previous_status!='resolved':
+        if support_settings():
+            queue_resolution(db,c,data.reason)
+            resolution_email='queued'
+        else:resolution_email='not_configured'
+        if not isinstance(c,GuestCase):
+            db.add(Notification(sender_id=u.id,user_id=c.user_id,title='Support issue resolved: '+c.subject[:130],body=data.reason))
     c.status=data.status
     if not isinstance(c,GuestCase):c.assigned_to=data.assigned_to
     c.updated=time.time()
-    audit(db,u,'case_'+data.status,c.id,data.reason);db.commit();return case_dict(c)
+    audit(db,u,'case_'+data.status,c.id,data.reason);db.commit();return {**case_dict(c),'resolution_email':resolution_email}
 @router.get('/api/admin/ops/access/{release_id}')
 def access_check(release_id:str,db:Session=Depends(get_db),u=Depends(permit('support','technical'))):
     r=db.get(Release,release_id)
@@ -199,3 +208,5 @@ def case_assignees(case_id:str,db:Session=Depends(get_db),u=Depends(permit('supp
     c=db.get(Case,case_id)
     if not c or not can_case(u,c):raise HTTPException(404,'Case not found')
     return [{'id':a.id,'name':a.name} for a in db.scalars(select(User)) if staff_role(a) and can_case(a,c)]
+
+
