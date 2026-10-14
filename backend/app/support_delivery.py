@@ -36,11 +36,19 @@ def support_settings():
         config={**config,'sender':'support@kathhaverse.org','reply_to':'support@kathhaverse.org'}
     return config
 
-def queue_reply(db,c,body):
+def queue_reply(db,c,body,event='Support reply'):
     recipient=c.email if hasattr(c,'email') else db.get(User,c.user_id).email
-    mail=SupportMail(recipient=recipient,case_id=c.id,category=c.category,urgency='normal',event='Support reply')
+    mail=SupportMail(recipient=recipient,case_id=c.id,category=c.category,urgency='normal',event=event)
     db.add(mail);db.flush();db.add(SupportMailContent(mail_id=mail.id,body=body))
     return mail
+
+def queue_resolution(db,c,summary):
+    body=(
+        'Your KathhaVerse support issue has been resolved.\n\n'
+        'Resolution:\n'+summary.strip()+'\n\n'
+        'If the problem continues, reply to this email or open Help & support and include your ticket ID.'
+    )
+    return queue_reply(db,c,body,event='Issue resolved')
 
 def notify_guest(db,c):
     from .operations import staff_role,can_case
@@ -59,7 +67,8 @@ def enqueue(db,c,actor,event):
 
 def message(item,config,body=None):
     msg=EmailMessage();msg['From']=formataddr(('KathhaVerse Support',config['sender']));msg['To']=item.recipient
-    msg['Subject']='Kathha Verse support · '+item.case_id
+    prefix='KathhaVerse support issue resolved · ' if item.event=='Issue resolved' else 'KathhaVerse support · '
+    msg['Subject']=prefix+item.case_id
     msg['Message-ID']=f'<support-{item.id}@kathhaverse.org>'
     if config.get('reply_to'):msg['Reply-To']=config['reply_to']
     if body is not None:
@@ -91,3 +100,5 @@ def process_one():
             db.execute(update(SupportMail).where(SupportMail.id==item_id).values(status='sent'))
             db.execute(delete(SupportMailContent).where(SupportMailContent.mail_id==item_id));db.commit()
     return True
+
+
