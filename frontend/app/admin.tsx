@@ -9,13 +9,13 @@ type Account={id:string;name:string;email:string;role:string;suspended:boolean;i
 type Overview={counts:Record<string,number>;email_enabled:boolean;email_status:Record<string,number>;ai_provider:string};
 type Event={id:string;actor:string;action:string;resource:string;created:number;detail?:{reason:string;before:{name:string;role:string;suspended:boolean};after:{name:string;role:string;suspended:boolean}}};
 type UserLog={items:{id:string;action:string;resource:string;created:number}[];total:number;first_seen:number|null;last_login:number|null;last_active:number|null;sessions:number};
-type Panel='overview'|'users'|'notifications'|'activity';
+export type AdminPanel='overview'|'users'|'notifications'|'activity';
 
 const timestamp=(v?:number|null)=>v?new Date(v*1000).toLocaleString():'Not recorded yet';
 const label=(value:string)=>value.replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase());
 
-export default function Admin({act,busy,userId}:{act:Act;busy:boolean;userId:string}){
- const [panel,setPanel]=useState<Panel>('overview'),[selected,setSelected]=useState<string|null>(null),[detailVersion,setDetailVersion]=useState(0);
+export default function Admin({act,busy,userId,panel='overview',onNavigate}:{act:Act;busy:boolean;userId:string;panel?:AdminPanel;onNavigate?:(panel:AdminPanel)=>void}){
+ const [selected,setSelected]=useState<string|null>(null),[detailVersion,setDetailVersion]=useState(0);
  const [overview,setOverview]=useState<Overview|null>(null),[accounts,setAccounts]=useState<Account[]>([]),[events,setEvents]=useState<Event[]>([]),[query,setQuery]=useState(''),[search,setSearch]=useState(''),[page,setPage]=useState(1),[total,setTotal]=useState(0),[editing,setEditing]=useState<Account|null>(null),[reason,setReason]=useState('');
  const [recipients,setRecipients]=useState<Record<string,string>>({}),[noticeTitle,setNoticeTitle]=useState(''),[noticeBody,setNoticeBody]=useState('');
  const [viewing,setViewing]=useState<Account|null>(null),[log,setLog]=useState<UserLog|null>(null),[logPage,setLogPage]=useState(1);
@@ -28,8 +28,8 @@ export default function Admin({act,busy,userId}:{act:Act;busy:boolean;userId:str
  const failedEmails=useMemo(()=>Object.entries(overview?.email_status||{}).filter(([key])=>/fail|bounce|error/i.test(key)).reduce((sum,[,value])=>sum+value,0),[overview]);
  const suspendedHere=accounts.filter(account=>account.suspended).length;
  const count=(key:string)=>overview?.counts[key]??0;
- const tabs:[Panel,string,typeof Users][]=[['overview','Overview',ShieldCheck],['users','Users',Users],['notifications','Notifications',Mail],['activity','Activity',Activity]];
- const openUsers=()=>{setPanel('users');window.scrollTo({top:0,behavior:'smooth'})};
+ const go=(next:AdminPanel)=>{onNavigate?.(next);window.scrollTo({top:0,behavior:'smooth'})};
+ const openUsers=()=>go('users');
  const statCards=[
   {key:'accounts',title:'Total users',value:count('accounts'),detail:'Manage access and roles',icon:Users,onClick:openUsers},
   {key:'stories',title:'Active stories',value:count('stories'),detail:`${count('chapters')} chapters`,icon:BookOpen},
@@ -40,8 +40,7 @@ export default function Admin({act,busy,userId}:{act:Act;busy:boolean;userId:str
  return <section className="admin-dashboard">
   {selected&&<AccountDashboard key={selected+detailVersion} id={selected} act={act} busy={busy} onBack={()=>{setSelected(null);void act(refresh)}} onEdit={a=>{setEditing({...a});setReason('')}} onActivity={a=>showActivity(a)}/>} 
   <div hidden={!!selected}>
-   <div className="admin-hero"><div><p className="eyebrow">PRIVATE ADMINISTRATION</p><h1>Administration</h1><p className="muted">See what needs attention, manage people, and review recent changes.</p></div><button className="button admin-refresh" disabled={busy} onClick={()=>act(refresh)}><RefreshCw size={16}/> Refresh data</button></div>
-   <nav className="admin-section-nav" aria-label="Administration sections">{tabs.map(([id,title,Icon])=><button key={id} className={panel===id?'active':''} aria-current={panel===id?'page':undefined} onClick={()=>setPanel(id)}><Icon size={17}/><span>{title}</span>{id==='notifications'&&Object.keys(recipients).length>0&&<span className="admin-nav-count">{Object.keys(recipients).length}</span>}</button>)}</nav>
+   <div className="admin-page-tools"><p>{panel==='overview'?'A clear view of what needs attention across KathhaVerse.':panel==='users'?'Manage roles, access, and account status.':panel==='notifications'?'Send a private in-app update to selected users.':'Review changes made by administrators.'}</p><button className="button admin-refresh" disabled={busy} onClick={()=>act(refresh)}><RefreshCw size={16}/> Refresh data</button></div>
 
    {panel==='overview'&&<>
     <div className="admin-summary-grid">{statCards.map(({key,title,value,detail,icon:Icon,onClick})=><article className="admin-summary-card" key={key}><div className="admin-summary-icon"><Icon size={19}/></div><div><span>{title}</span><strong>{value.toLocaleString()}</strong><small>{detail}</small></div>{onClick&&<button className="text-button" onClick={onClick}>View</button>}</article>)}</div>
@@ -59,7 +58,7 @@ export default function Admin({act,busy,userId}:{act:Act;busy:boolean;userId:str
       <small>Configuration status is shown here. Live service checks remain in Platform operations.</small>
      </section>
     </div>
-    <section className="admin-panel"><div className="admin-panel-heading"><div><p className="eyebrow">RECENT CHANGES</p><h2>Administrator activity</h2></div><button className="text-button" onClick={()=>setPanel('activity')}>View all</button></div>
+    <section className="admin-panel"><div className="admin-panel-heading"><div><p className="eyebrow">RECENT CHANGES</p><h2>Administrator activity</h2></div><button className="text-button" onClick={()=>go('activity')}>View all</button></div>
      <div className="admin-timeline">{events.slice(0,5).map(event=><article key={event.id}><span className="admin-timeline-dot"/><div><strong>{event.action}</strong><p>{event.resource}</p><small>{timestamp(event.created)} · {event.actor}</small></div></article>)}{!events.length&&<div className="admin-empty"><Activity size={22}/><div><strong>No administrator changes yet</strong><small>Account and notification actions will appear here.</small></div></div>}</div>
     </section>
    </>}
@@ -69,7 +68,7 @@ export default function Admin({act,busy,userId}:{act:Act;busy:boolean;userId:str
     <div className="admin-table"><table><thead><tr><th>User</th><th>Role</th><th>Status</th><th>Last active</th><th>Actions</th></tr></thead><tbody>{accounts.map(account=><tr key={account.id}><td><button className="text-button admin-user-name" onClick={()=>setSelected(account.id)}>{account.name}</button><small>{account.email}</small></td><td>{account.is_admin?'Administrator':account.role==='beta'?'Beta reader':account.role==='writer'?'Writer':'Reader'}</td><td><span className={'admin-status-pill '+(account.suspended?'danger':'success')}>{account.suspended?'Suspended':'Active'}</span></td><td><small>{timestamp(account.last_active)}</small></td><td><div className="admin-actions"><button className="button" onClick={()=>setSelected(account.id)}>Open</button><button className="button" disabled={busy} onClick={()=>showActivity(account)}>Activity</button>{!account.is_admin&&<button className="button" disabled={busy||account.id===userId} onClick={()=>{setEditing({...account});setReason('')}}>Edit</button>}<label className="admin-notify-check"><input type="checkbox" aria-label={'Select '+account.email+' for notification'} checked={!!recipients[account.id]} onChange={e=>setRecipients(old=>{const next={...old};if(e.target.checked)next[account.id]=account.email;else delete next[account.id];return next})}/> Notify</label></div></td></tr>)}</tbody></table></div>
     {!accounts.length&&<div className="admin-empty"><Users size={22}/><div><strong>No matching users</strong><small>Try another name or email address.</small></div></div>}
     <div className="admin-pagination"><span>Page {page}</span><div><button className="button" disabled={busy||page===1} onClick={()=>setPage(page-1)}>Previous</button><button className="button" disabled={busy||page*25>=total} onClick={()=>setPage(page+1)}>Next</button></div></div>
-    {!!Object.keys(recipients).length&&<div className="admin-selection-bar"><span>{Object.keys(recipients).length} selected</span><button className="button primary" onClick={()=>setPanel('notifications')}>Write notification</button><button className="button" onClick={()=>setRecipients({})}>Clear</button></div>}
+    {!!Object.keys(recipients).length&&<div className="admin-selection-bar"><span>{Object.keys(recipients).length} selected</span><button className="button primary" onClick={()=>go('notifications')}>Write notification</button><button className="button" onClick={()=>setRecipients({})}>Clear</button></div>}
    </section>}
 
    {panel==='notifications'&&<form className="admin-panel admin-notification-form form-stack" onSubmit={e=>{e.preventDefault();if(!window.confirm('Send this notification to '+Object.keys(recipients).length+' selected accounts?'))return;void act(async()=>{await api('/admin/notifications','POST',{recipients:Object.keys(recipients),title:noticeTitle,body:noticeBody});setNoticeTitle('');setNoticeBody('');setRecipients({});await refresh()},'Notification sent')}}>
