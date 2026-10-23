@@ -1,6 +1,5 @@
 User-agent: *
 Allow: /
 Disallow: /api/
-Disallow: /reset-password
 
 Sitemap: https://www.kathhaverse.org/sitemap.xml
