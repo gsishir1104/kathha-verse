@@ -488,8 +488,8 @@ install_studio(app)
 # A single-origin production container serves the static Next export and API.
 # This also keeps the HttpOnly session cookie same-site without cross-domain workarounds.
 from pathlib import Path
-from fastapi.staticfiles import StaticFiles
+from .static_frontend import StaticExportFiles
 static_dir=Path(os.getenv('FRONTEND_DIST','../frontend/out'))
-if static_dir.is_dir(): app.mount('/',StaticFiles(directory=static_dir,html=True),name='frontend')
+if static_dir.is_dir(): app.mount('/',StaticExportFiles(directory=static_dir,html=True),name='frontend')
 
 
